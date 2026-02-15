@@ -49,9 +49,7 @@ export default function MyTeamsPage() {
   const golferMap = useMemo(() => {
     if (!tournament?.golfers) return {};
     const map = {};
-    tournament.golfers.forEach((g, i) => {
-      map[g.name] = { ...g, world_ranking: g.world_ranking || i + 1 };
-    });
+    tournament.golfers.forEach((g, i) => { map[g.name] = { ...g, world_ranking: g.world_ranking || i + 1 }; });
     return map;
   }, [tournament]);
 
@@ -69,6 +67,8 @@ export default function MyTeamsPage() {
   const currentTeam = activeTeam === 1 ? team1 : team2;
   const currentCost = activeTeam === 1 ? team1Cost : team2Cost;
   const setCurrentTeam = activeTeam === 1 ? setTeam1 : setTeam2;
+  const currentFull = currentTeam.filter(Boolean).length >= 5;
+  const remaining = BUDGET - currentCost;
 
   const addGolfer = (golfer) => {
     if (locked) { toast.error('Teams are locked!'); return false; }
@@ -89,34 +89,38 @@ export default function MyTeamsPage() {
     setCurrentTeam([...filled, ...Array(5 - filled.length).fill(null)]);
   };
 
-  const clearTeam = () => { 
-    if (!locked) setCurrentTeam([null,null,null,null,null]); 
+  // Remove by name - used from the golfer list
+  const removeGolferByName = (name) => {
+    if (locked) return;
+    const team = [...currentTeam];
+    const idx = team.findIndex(g => g?.name === name);
+    if (idx === -1) return;
+    team[idx] = null;
+    const filled = team.filter(Boolean);
+    setCurrentTeam([...filled, ...Array(5 - filled.length).fill(null)]);
   };
 
+  const clearTeam = () => { if (!locked) setCurrentTeam([null,null,null,null,null]); };
+
   const saveTeam = async () => {
-    const team = currentTeam;
-    const cost = currentCost;
-    const teamNum = activeTeam;
-    const filled = team.filter(Boolean);
-    
+    const filled = currentTeam.filter(Boolean);
     if (filled.length === 0) {
-      const existing = userTeams.find(t => t.tournament_id === tournament.id && t.team_number === teamNum);
+      const existing = userTeams.find(t => t.tournament_id === tournament.id && t.team_number === activeTeam);
       if (existing) {
-        try { 
-          await axios.delete(`${API}/teams/${existing.id}?user_id=${user.id}`); 
-          toast.success(`Team #${teamNum} deleted`);
+        try {
+          await axios.delete(`${API}/teams/${existing.id}?user_id=${user.id}`);
+          toast.success(`Team #${activeTeam} deleted`);
           setUserTeams((await axios.get(`${API}/teams/user/${user.id}`)).data);
         } catch (e) { toast.error(e.response?.data?.detail || 'Delete failed'); }
       }
       return;
     }
     if (filled.length !== 5) { toast.error('Select exactly 5 golfers'); return; }
-    if (cost > BUDGET) { toast.error('Over budget!'); return; }
-    
+    if (currentCost > BUDGET) { toast.error('Over budget!'); return; }
     setSaving(true);
     try {
-      await axios.post(`${API}/teams`, { user_id: user.id, tournament_id: tournament.id, team_number: teamNum, golfers: filled });
-      toast.success(`Team #${teamNum} saved!`);
+      await axios.post(`${API}/teams`, { user_id: user.id, tournament_id: tournament.id, team_number: activeTeam, golfers: filled });
+      toast.success(`Team #${activeTeam} saved!`);
       setUserTeams((await axios.get(`${API}/teams/user/${user.id}`)).data);
     } catch (e) { toast.error(e.response?.data?.detail || 'Save failed'); }
     finally { setSaving(false); }
@@ -131,7 +135,6 @@ export default function MyTeamsPage() {
     <div className="p-4 md:p-8 max-w-4xl mx-auto animate-fade-in-up" data-testid="my-teams-page">
       <h1 className="font-heading font-extrabold text-3xl sm:text-4xl text-[#0F172A] tracking-tight mb-4">MY TEAMS</h1>
 
-      {/* Tournament Selector */}
       <div className="flex gap-2 overflow-x-auto pb-2 mb-4" data-testid="tournament-selector">
         {tournaments.map(t => (
           <button key={t.slot} onClick={() => setSelectedSlot(t.slot)} data-testid={`select-tournament-${t.slot}`}
@@ -156,55 +159,38 @@ export default function MyTeamsPage() {
             </div>
           )}
 
-          {/* Team Toggle - Left aligned */}
           <div className="mb-4">
             <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-1 w-fit">
-              <button
-                onClick={() => setActiveTeam(1)}
-                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${
-                  activeTeam === 1 ? 'bg-[#1B4332] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-                data-testid="toggle-team-1"
-              >
+              <button onClick={() => setActiveTeam(1)} data-testid="toggle-team-1"
+                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTeam === 1 ? 'bg-[#1B4332] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                 Team 1
               </button>
-              <button
-                onClick={() => setActiveTeam(2)}
-                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${
-                  activeTeam === 2 ? 'bg-[#2D6A4F] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-                data-testid="toggle-team-2"
-              >
+              <button onClick={() => setActiveTeam(2)} data-testid="toggle-team-2"
+                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTeam === 2 ? 'bg-[#2D6A4F] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                 Team 2
               </button>
             </div>
           </div>
 
-          {/* Main Layout - Two columns on desktop */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Current Team Panel */}
+
+            {/* Team Panel */}
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden" data-testid={`team-${activeTeam}-panel`}>
               <div className={`px-4 py-3 flex items-center justify-between ${activeTeam === 1 ? 'bg-gradient-to-r from-[#1B4332] to-[#2D6A4F]' : 'bg-gradient-to-r from-[#2D6A4F] to-[#1B4332]'}`}>
                 <span className="text-white font-heading font-bold text-sm uppercase tracking-wider">{user.name}'s Team {activeTeam}</span>
-                <div className="flex items-center gap-2">
-                  {!locked && <button onClick={clearTeam} className="text-white/60 hover:text-white" data-testid={`clear-team-${activeTeam}`}><Trash2 className="w-4 h-4" /></button>}
-                </div>
+                {!locked && <button onClick={clearTeam} className="text-white/60 hover:text-white" data-testid={`clear-team-${activeTeam}`}><Trash2 className="w-4 h-4" /></button>}
               </div>
-              
-              {/* Budget Bar */}
               <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
                 <div className="flex justify-between text-xs font-semibold mb-1">
                   <span className={over ? 'text-red-500' : 'text-slate-500'}><DollarSign className="w-3.5 h-3.5 inline" />{fmt(currentCost)} / {fmt(BUDGET)}</span>
                   <span className={over ? 'text-red-500 font-bold' : 'text-[#1B4332] font-bold'}>
-                    {over ? <><AlertTriangle className="w-3.5 h-3.5 inline mr-0.5" />OVER {fmt(currentCost - BUDGET)}</> : `${fmt(BUDGET - currentCost)} left`}
+                    {over ? <><AlertTriangle className="w-3.5 h-3.5 inline mr-0.5" />OVER {fmt(currentCost - BUDGET)}</> : `${fmt(remaining)} left`}
                   </span>
                 </div>
                 <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
                   <div className={`h-full rounded-full budget-bar ${over ? 'bg-red-500' : 'bg-[#1B4332]'}`} style={{ width: `${pct}%` }} />
                 </div>
               </div>
-              
-              {/* Team Slots */}
               <div className="divide-y divide-slate-50">
                 {currentTeam.map((g, i) => (
                   <div key={i} className="flex items-center px-4 py-3 min-h-[52px]" data-testid={`team-${activeTeam}-slot-${i}`}>
@@ -222,8 +208,6 @@ export default function MyTeamsPage() {
                   </div>
                 ))}
               </div>
-              
-              {/* Save Button */}
               {!locked && (
                 <div className="p-4 border-t border-slate-100">
                   <Button onClick={saveTeam} disabled={saving} data-testid={`save-team-${activeTeam}`}
@@ -249,26 +233,37 @@ export default function MyTeamsPage() {
                     const onT1 = team1.some(t => t?.name === g.name);
                     const onT2 = team2.some(t => t?.name === g.name);
                     const onCurrentTeam = currentTeam.some(t => t?.name === g.name);
-                    const currentFull = currentTeam.filter(Boolean).length >= 5;
+                    const wouldExceedBudget = !onCurrentTeam && (currentCost + (g.price || 0) > BUDGET);
+                    const cantAdd = !onCurrentTeam && (currentFull || wouldExceedBudget);
+
                     return (
-                      <div key={g.espn_id || i} className={`flex items-center px-3 py-2.5 ${onCurrentTeam ? 'bg-green-50' : 'hover:bg-slate-50'} transition-colors`} data-testid={`golfer-row-${i}`}>
+                      <div key={g.espn_id || i}
+                        className={`flex items-center px-3 py-2.5 transition-colors ${
+                          onCurrentTeam ? 'bg-green-50' : cantAdd ? 'opacity-40' : 'hover:bg-slate-50'
+                        }`}
+                        data-testid={`golfer-row-${i}`}>
                         <span className="w-9 text-xs font-bold text-slate-600 font-numbers">#{g.world_ranking || i+1}</span>
                         <div className="flex-1 min-w-0 mr-2">
                           <span className="text-sm font-medium text-[#0F172A] block truncate">{g.name}</span>
-                          <span className="text-xs font-bold font-numbers text-[#2D6A4F]">{fmt(g.price)}</span>
+                          <span className={`text-xs font-bold font-numbers ${wouldExceedBudget ? 'text-red-400' : 'text-[#2D6A4F]'}`}>
+                            {fmt(g.price)}{wouldExceedBudget && <span className="font-normal ml-1">· over budget</span>}
+                          </span>
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           {onT1 && <span className="text-[9px] font-bold bg-[#1B4332] text-white rounded px-1.5 py-0.5">T1</span>}
                           {onT2 && <span className="text-[9px] font-bold bg-[#2D6A4F] text-white rounded px-1.5 py-0.5">T2</span>}
+                          {!locked && onCurrentTeam && (
+                            <button onClick={() => removeGolferByName(g.name)} data-testid={`remove-from-list-${i}`}
+                              className="h-8 px-3 rounded-md bg-red-50 text-red-500 hover:bg-red-100 text-xs font-bold flex items-center gap-1 transition-colors">
+                              <Minus className="w-3 h-3" />Remove
+                            </button>
+                          )}
                           {!locked && !onCurrentTeam && (
-                            <Button size="sm" onClick={() => addGolfer(g)} disabled={currentFull}
+                            <Button size="sm" onClick={() => addGolfer(g)} disabled={cantAdd}
                               data-testid={`add-golfer-${i}`}
                               className={`h-8 px-4 ${activeTeam === 1 ? 'bg-[#1B4332] hover:bg-[#2D6A4F]' : 'bg-[#2D6A4F] hover:bg-[#1B4332]'} text-white text-xs font-bold disabled:opacity-30`}>
                               Add
                             </Button>
-                          )}
-                          {onCurrentTeam && (
-                            <span className="text-xs text-green-600 font-semibold px-2">Added</span>
                           )}
                         </div>
                       </div>

@@ -27,21 +27,26 @@ export default function Layout() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="min-h-screen bg-background pb-20 md:pb-0 md:pt-16">
-        {/* Desktop Top Nav */}
-        <header className="hidden md:flex fixed top-0 left-0 right-0 z-50 glass shadow-sm h-16 items-center px-6" data-testid="desktop-nav">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/home')}>
-            <img 
-              src="https://images.vexels.com/media/users/3/134963/isolated/preview/7521d9cc865d48ec2dfb2a8a6286c13e-bridge-circle-icon-03.png" 
-              alt="Steel Sons Golf" 
-              className="h-10 w-10 object-contain"
+      <div className="min-h-screen bg-background pt-16">
+
+        {/* ── Unified Top Nav (desktop + mobile) ── */}
+        <header className="fixed top-0 left-0 right-0 z-50 glass shadow-sm h-16 flex items-center px-4 md:px-6" data-testid="top-nav">
+
+          {/* Logo */}
+          <div className="flex items-center gap-2 cursor-pointer flex-shrink-0" onClick={() => navigate('/home')}>
+            <img
+              src="https://images.vexels.com/media/users/3/134963/isolated/preview/7521d9cc865d48ec2dfb2a8a6286c13e-bridge-circle-icon-03.png"
+              alt="Steel Sons Golf"
+              className="h-8 w-8 md:h-10 md:w-10 object-contain"
             />
             <div className="flex flex-col">
-              <span className="font-heading font-bold text-lg tracking-tight text-[#1B4332] leading-tight">STEEL SONS GOLF</span>
-              <span className="text-[8px] font-bold text-[#0F172A] tracking-wider leading-none">BLAST FURNACE OF CHAMPIONS</span>
+              <span className="font-heading font-bold text-sm md:text-lg tracking-tight text-[#1B4332] leading-tight">STEEL SONS GOLF</span>
+              <span className="text-[6px] md:text-[8px] font-bold text-[#0F172A] tracking-wider leading-none">BLAST FURNACE OF CHAMPIONS</span>
             </div>
           </div>
-          <nav className="flex items-center gap-1 ml-auto">
+
+          {/* Nav links — icon-only on mobile, icon+label on large screens */}
+          <nav className="flex items-center gap-0.5 md:gap-1 ml-auto">
             {allItems.map(item => {
               const active = location.pathname === item.path;
               return (
@@ -50,33 +55,39 @@ export default function Layout() {
                     <button
                       data-testid={`nav-${item.label.toLowerCase().replace(/\s/g, '-')}`}
                       onClick={() => navigate(item.path)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      className={`flex flex-col md:flex-row items-center gap-0.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all ${
                         active ? 'bg-[#1B4332] text-white' : 'text-slate-600 hover:bg-slate-100'
                       }`}
                     >
-                      <item.icon className="w-4 h-4" />
-                      <span className="hidden lg:inline">{item.label}</span>
+                      <item.icon className={`w-4 h-4 md:w-4 md:h-4 flex-shrink-0 ${active ? 'stroke-[2.5]' : ''}`} />
+                      {/* Label: tiny on mobile, full on desktop */}
+                      <span className="text-[9px] md:text-sm leading-none md:leading-normal">
+                        {item.label.split(' ').pop()}
+                      </span>
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>{item.label}</TooltipContent>
                 </Tooltip>
               );
             })}
-            <div className="w-px h-6 bg-slate-200 mx-2" />
+
+            <div className="w-px h-6 bg-slate-200 mx-1" />
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <button data-testid="nav-profile" onClick={() => setProfileOpen(true)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-all">
+                  className="flex flex-col md:flex-row items-center gap-0.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-all">
                   <UserCog className="w-4 h-4" />
-                  <span className="hidden lg:inline">{user?.name?.split(' ')[0]}</span>
+                  <span className="text-[9px] md:text-sm leading-none md:leading-normal hidden md:inline">{user?.name?.split(' ')[0]}</span>
                 </button>
               </TooltipTrigger>
               <TooltipContent>Profile</TooltipContent>
             </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <button data-testid="nav-logout" onClick={handleLogout}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-all">
+                  className="flex flex-col md:flex-row items-center gap-0.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-red-500 hover:bg-red-50 transition-all">
                   <LogOut className="w-4 h-4" />
                 </button>
               </TooltipTrigger>
@@ -85,58 +96,10 @@ export default function Layout() {
           </nav>
         </header>
 
-        {/* Mobile Top Bar */}
-        <header className="md:hidden fixed top-0 left-0 right-0 z-50 glass shadow-sm h-14 flex items-center px-4 justify-between" data-testid="mobile-top-bar">
-          <div className="flex items-center gap-2" onClick={() => navigate('/home')}>
-            <img 
-              src="https://images.vexels.com/media/users/3/134963/isolated/preview/7521d9cc865d48ec2dfb2a8a6286c13e-bridge-circle-icon-03.png" 
-              alt="Steel Sons Golf" 
-              className="h-8 w-8 object-contain"
-            />
-            <div className="flex flex-col">
-              <span className="font-heading font-bold text-sm tracking-tight text-[#1B4332] leading-tight">STEEL SONS GOLF</span>
-              <span className="text-[6px] font-bold text-[#0F172A] tracking-wider leading-none">BLAST FURNACE OF CHAMPIONS</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            <button data-testid="mobile-profile" onClick={() => setProfileOpen(true)} className="p-2 rounded-lg hover:bg-slate-100">
-              <UserCog className="w-5 h-5 text-slate-600" />
-            </button>
-            <button data-testid="mobile-logout" onClick={handleLogout} className="p-2 rounded-lg hover:bg-red-50">
-              <LogOut className="w-5 h-5 text-red-500" />
-            </button>
-          </div>
-        </header>
-
         {/* Page Content */}
-        <main className="pt-14 md:pt-0">
+        <main>
           <Outlet />
         </main>
-
-        {/* Mobile Bottom Nav */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass shadow-[0_-2px_10px_rgba(0,0,0,0.06)] flex items-center justify-around h-16 px-1" data-testid="mobile-nav">
-          {allItems.map(item => {
-            const active = location.pathname === item.path;
-            return (
-              <Tooltip key={item.path}>
-                <TooltipTrigger asChild>
-                  <button
-                    data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s/g, '-')}`}
-                    onClick={() => navigate(item.path)}
-                    className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all min-w-[52px] ${
-                      active ? 'text-[#1B4332]' : 'text-slate-400'
-                    }`}
-                  >
-                    <item.icon className={`w-5 h-5 ${active ? 'stroke-[2.5]' : ''}`} />
-                    <span className="text-[10px] font-semibold leading-none">{item.label.split(' ').pop()}</span>
-                    {active && <div className="w-4 h-0.5 rounded-full bg-[#CCFF00] mt-0.5" />}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top">{item.label}</TooltipContent>
-              </Tooltip>
-            );
-          })}
-        </nav>
       </div>
 
       <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />

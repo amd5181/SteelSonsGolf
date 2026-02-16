@@ -3,7 +3,34 @@ import axios from 'axios';
 import { API, useAuth } from '../App';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Trophy, Medal, RefreshCw, Loader2, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Medal, RefreshCw, Loader2, Clock, ChevronDown, ChevronUp, BarChart2 } from 'lucide-react';
+
+// Abbreviate "Colin Morikawa" → "C. Morikawa"
+const abbrevName = (name) => {
+  if (!name) return '';
+  const parts = name.trim().split(' ');
+  if (parts.length < 2) return name;
+  return `${parts[0][0]}. ${parts.slice(1).join(' ')}`;
+};
+
+// Thru display: hole number, F, tee time, CUT, or blank
+const renderThruCell = (golfer) => {
+  if (golfer.is_cut) return <span className="text-red-400 font-bold text-[10px]">CUT</span>;
+  const thru = golfer.thru?.toString() || '';
+  if (golfer.is_active) {
+    if (thru === '18' || thru === 'F') return <span className="text-slate-500 font-numbers text-xs">F</span>;
+    if (thru) return <span className="text-green-600 font-bold font-numbers text-xs">{thru}</span>;
+    // Has tee time but hasn't started
+    if (golfer.tee_time) {
+      const t = new Date(golfer.tee_time);
+      return <span className="text-slate-400 text-[10px]">{t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>;
+    }
+    return <span className="text-green-600 font-bold text-[10px]">▶</span>;
+  }
+  if (thru === 'F' || thru === '18') return <span className="text-slate-400 font-numbers text-xs">F</span>;
+  if (thru) return <span className="text-slate-400 font-numbers text-xs">{thru}</span>;
+  return <span className="text-slate-300 text-xs">—</span>;
+};
 
 export default function LeaderboardPage() {
   const { user } = useAuth();
@@ -56,9 +83,7 @@ export default function LeaderboardPage() {
     try {
       await axios.post(`${API}/scores/refresh/${selectedTid}?user_id=${user.id}`);
       await fetchLeaderboard();
-    } catch (e) {
-      console.error('Refresh failed:', e);
-    }
+    } catch (e) { console.error('Refresh failed:', e); }
     setRefreshing(false);
   };
 
@@ -69,75 +94,25 @@ export default function LeaderboardPage() {
   const finalized = data?.is_finalized;
   const winners = finalized ? standings.slice(0, 3) : [];
 
-  // Helper to render rounds with CUT handling
   const renderRounds = (golfer) => {
     const rounds = golfer.rounds || [];
     const isCut = golfer.is_cut;
-    const maxRounds = 4;
-    
-    return Array.from({ length: maxRounds }, (_, ri) => {
+    return Array.from({ length: 4 }, (_, ri) => {
       const round = rounds[ri];
       const hasScore = round && round.score && round.score !== '-' && round.score !== '';
-      
-      if (isCut && ri >= 2) {
-        return (
-          <span key={ri} className="w-8 text-center font-numbers text-[10px] text-red-400 font-bold">
-            CUT
-          </span>
-        );
-      }
-      
+      if (isCut && ri >= 2) return <span key={ri} className="w-7 text-center font-numbers text-[10px] text-red-400 font-bold">CUT</span>;
       if (hasScore) {
         const isCurrentRound = golfer.is_active && ri === rounds.length - 1;
-        return (
-          <span key={ri} className={`w-8 text-center font-numbers ${isCurrentRound ? 'text-green-600 font-bold' : 'text-slate-400'}`}>
-            {round.score}
-          </span>
-        );
+        return <span key={ri} className={`w-7 text-center font-numbers text-[10px] ${isCurrentRound ? 'text-green-600 font-bold' : 'text-slate-400'}`}>{round.score}</span>;
       }
-      
-      return (
-        <span key={ri} className="w-8 text-center font-numbers text-slate-300">
-          -
-        </span>
-      );
+      return <span key={ri} className="w-7 text-center font-numbers text-[10px] text-slate-200">-</span>;
     });
   };
 
-  // Helper to render Thru indicator - only show meaningful status
-  const renderThru = (golfer) => {
-    if (golfer.is_cut) return <span className="w-14"></span>;
-    
-    const thru = golfer.thru?.toString() || '';
-    
-    // If player is actively playing and has thru data
-    if (golfer.is_active && thru && thru !== '18' && thru !== 'F') {
-      return (
-        <span className="w-14 text-center text-[10px] font-bold text-green-600 bg-green-50 rounded px-1 py-0.5">
-          Thru {thru}
-        </span>
-      );
-    } 
-    
-    // If player is active but no thru (just started or data not available)
-    if (golfer.is_active && !thru) {
-      return (
-        <span className="w-14 text-center text-[10px] font-bold text-green-600 bg-green-50 rounded px-1 py-0.5">
-          Playing
-        </span>
-      );
-    }
-    
-    // Don't show anything if player isn't active - they're between rounds
-    return <span className="w-14"></span>;
-  };
-
   const TournamentStandingsBox = ({ isMobile }) => {
-    // Show top 5 by default, top 25 when expanded (but limit to available scores)
     const maxExpanded = Math.min(25, allScores.length);
     const displayScores = expandedStandings ? allScores.slice(0, 25) : allScores.slice(0, 5);
     const canExpand = allScores.length > 5;
-    
     return (
       <div className={`bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] rounded-xl shadow-lg overflow-hidden ${isMobile ? 'mb-4' : 'sticky top-20'}`} data-testid="tournament-standings">
         <div className="px-4 py-3 flex items-center justify-between border-b border-white/10">
@@ -145,35 +120,20 @@ export default function LeaderboardPage() {
             Tournament Top {expandedStandings ? maxExpanded : Math.min(5, allScores.length)}
           </h3>
           {canExpand && (
-            <Button 
-              size="sm" 
-              variant="ghost" 
-              onClick={() => setExpandedStandings(!expandedStandings)}
-              className="h-7 px-2 text-white/70 hover:text-white hover:bg-white/10"
-              data-testid="expand-standings"
-            >
+            <Button size="sm" variant="ghost" onClick={() => setExpandedStandings(!expandedStandings)}
+              className="h-7 px-2 text-white/70 hover:text-white hover:bg-white/10" data-testid="expand-standings">
               {expandedStandings ? <><ChevronUp className="w-4 h-4 mr-1" />Top 5</> : <><ChevronDown className="w-4 h-4 mr-1" />Top 25</>}
             </Button>
           )}
         </div>
         <div className={`divide-y divide-white/5 ${expandedStandings ? 'max-h-[500px] overflow-y-auto' : ''}`}>
-          {displayScores.length === 0 && (
-            <div className="p-4 text-center text-xs text-white/50">No scores available</div>
-          )}
+          {displayScores.length === 0 && <div className="p-4 text-center text-xs text-white/50">No scores available</div>}
           {displayScores.map((g, i) => (
-            <div key={i} className="flex items-center px-4 py-2">
-              <span className={`w-8 font-numbers font-bold text-xs ${i < 3 ? 'text-[#CCFF00]' : 'text-white/50'}`}>
-                {g.position || i + 1}
-              </span>
+            <div key={i} className="flex items-center px-4 py-2 gap-2">
+              <span className={`w-7 font-numbers font-bold text-xs flex-shrink-0 ${i < 3 ? 'text-[#CCFF00]' : 'text-white/50'}`}>{g.position || i + 1}</span>
               <span className="flex-1 text-sm font-medium text-white truncate">{g.name}</span>
-              {g.is_active && (
-                <span className="text-[9px] font-bold text-green-400 mr-2">LIVE</span>
-              )}
-              <span className={`font-numbers font-bold text-sm ${
-                g.total_score?.toString().startsWith('-') ? 'text-[#CCFF00]' : g.total_score === 'E' ? 'text-white/70' : 'text-white/70'
-              }`}>
-                {g.total_score}
-              </span>
+              {g.is_active && <span className="text-[9px] font-bold text-green-400 flex-shrink-0">LIVE</span>}
+              <span className={`font-numbers font-bold text-sm flex-shrink-0 ${g.total_score?.toString().startsWith('-') ? 'text-[#CCFF00]' : 'text-white/70'}`}>{g.total_score}</span>
             </div>
           ))}
         </div>
@@ -183,21 +143,12 @@ export default function LeaderboardPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto animate-fade-in-up" data-testid="leaderboard-page">
-      <div className="flex items-center justify-between mb-4">
+
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-2">
         <h1 className="font-heading font-extrabold text-3xl sm:text-4xl text-[#0F172A] tracking-tight">LEADERBOARD</h1>
-        
-        {/* Prominent Refresh Button */}
-        <Button 
-          onClick={handleRefresh}
-          disabled={refreshing}
-          data-testid="refresh-leaderboard"
-          className="bg-[#1B4332] hover:bg-[#2D6A4F] text-white h-10 px-4"
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Refreshing...' : 'Refresh Scores'}
-        </Button>
       </div>
-      
+
       {/* Last Updated */}
       {data?.last_updated && (
         <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-4">
@@ -221,19 +172,18 @@ export default function LeaderboardPage() {
 
       {!data || (!standings.length && !allScores.length) ? (
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center" data-testid="no-leaderboard">
-          <Trophy className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+          <BarChart2 className="w-12 h-12 text-slate-200 mx-auto mb-3" />
           <p className="text-slate-400 text-lg font-medium">Nothing to display yet</p>
           <p className="text-slate-400 text-sm mt-1">Check back when the tournament begins.</p>
         </div>
       ) : (
         <>
-          {/* Mobile: Tournament Standings at TOP */}
+          {/* Mobile: Tournament Standings */}
           <div className="lg:hidden">
             <TournamentStandingsBox isMobile={true} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Team Standings */}
             <div className="lg:col-span-2 space-y-3">
               {/* Winners Banner */}
               {finalized && winners.length > 0 && (
@@ -255,7 +205,7 @@ export default function LeaderboardPage() {
 
               {standings.length === 0 ? (
                 <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
-                  <Trophy className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                  <BarChart2 className="w-10 h-10 text-slate-200 mx-auto mb-2" />
                   <p className="text-slate-400 text-sm">No fantasy teams entered yet</p>
                 </div>
               ) : (
@@ -263,37 +213,70 @@ export default function LeaderboardPage() {
                   <div key={team.team_id} className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden"
                     data-testid={`team-standing-${team.rank}`}>
                     <div className="flex items-center px-4 py-3 border-b border-slate-50">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-numbers font-bold text-sm mr-3 ${
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-numbers font-bold text-sm mr-3 flex-shrink-0 ${
                         team.rank === 1 ? 'bg-yellow-100 text-yellow-700' :
                         team.rank === 2 ? 'bg-slate-100 text-slate-600' :
                         team.rank === 3 ? 'bg-amber-100 text-amber-700' : 'bg-slate-50 text-slate-400'
                       }`}>
                         {team.rank}
                       </div>
-                      <div className="flex-1">
-                        <span className="font-bold text-sm text-[#0F172A]">{team.team_name}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-bold text-sm text-[#0F172A] truncate block">{team.team_name}</span>
                       </div>
-                      <span className="font-numbers font-bold text-lg text-[#1B4332]" data-testid={`team-points-${team.rank}`}>
+                      <span className="font-numbers font-bold text-lg text-[#1B4332] ml-2" data-testid={`team-points-${team.rank}`}>
                         {typeof team.total_points === 'number' ? team.total_points.toFixed(2) : team.total_points}
                       </span>
                       <span className="text-xs text-slate-400 ml-1">pts</span>
                     </div>
+
+                    {/* Golfer rows — col headers */}
+                    <div className="hidden sm:flex items-center px-4 py-1 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      <span className="w-10">Pos</span>
+                      <span className="flex-1">Player</span>
+                      <span className="flex gap-0.5 mr-2">
+                        <span className="w-7 text-center">R1</span>
+                        <span className="w-7 text-center">R2</span>
+                        <span className="w-7 text-center">R3</span>
+                        <span className="w-7 text-center">R4</span>
+                      </span>
+                      <span className="w-10 text-right">Tot</span>
+                      <span className="w-10 text-center">Thru</span>
+                      <span className="w-12 text-right">Pts</span>
+                    </div>
+
                     <div className="divide-y divide-slate-50">
                       {team.golfers.map((g, i) => (
                         <div key={i} className="flex items-center px-4 py-1.5 text-xs">
-                          <span className={`w-10 font-numbers font-bold ${g.is_cut ? 'text-red-400' : g.is_active ? 'text-green-500 pulse-active' : 'text-slate-500'}`}>
-                            {g.is_cut ? 'CUT' : g.position || '-'}
-                            {g.is_active && !g.is_cut && '*'}
+                          {/* Position */}
+                          <span className={`w-10 font-numbers font-bold flex-shrink-0 ${g.is_cut ? 'text-red-400' : g.is_active ? 'text-green-500 pulse-active' : 'text-slate-500'}`}>
+                            {g.is_cut ? 'CUT' : g.position || '-'}{g.is_active && !g.is_cut && '*'}
                           </span>
-                          <span className="flex-1 font-medium text-[#0F172A] truncate">{g.name}</span>
-                          <div className="hidden sm:flex gap-0.5 mr-2">
+
+                          {/* Name — abbreviated on mobile, full on sm+ */}
+                          <span className="flex-1 font-medium text-[#0F172A] truncate min-w-0">
+                            <span className="sm:hidden">{abbrevName(g.name)}</span>
+                            <span className="hidden sm:inline">{g.name}</span>
+                          </span>
+
+                          {/* Round scores — visible on sm+ */}
+                          <div className="hidden sm:flex gap-0.5 mr-2 flex-shrink-0">
                             {renderRounds(g)}
                           </div>
-                          <span className={`w-8 text-right font-numbers ${g.total_score === '-' ? 'text-slate-300' : 'text-slate-500'}`}>
+
+                          {/* Total score */}
+                          <span className={`w-10 text-right font-numbers flex-shrink-0 ${g.total_score === '-' ? 'text-slate-300' : 'text-slate-600'}`}>
                             {g.total_score}
                           </span>
-                          {renderThru(g)}
-                          <span className="w-12 text-right font-numbers font-bold text-[#1B4332]">{typeof g.total_points === 'number' ? g.total_points.toFixed(2) : g.total_points}</span>
+
+                          {/* Thru column */}
+                          <span className="w-10 text-center flex-shrink-0 flex items-center justify-center">
+                            {renderThruCell(g)}
+                          </span>
+
+                          {/* Points */}
+                          <span className="w-12 text-right font-numbers font-bold text-[#1B4332] flex-shrink-0">
+                            {typeof g.total_points === 'number' ? g.total_points.toFixed(2) : g.total_points}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -302,13 +285,24 @@ export default function LeaderboardPage() {
               )}
             </div>
 
-            {/* Desktop: Tournament Standings on RIGHT */}
+            {/* Desktop: Tournament Standings */}
             <div className="hidden lg:block lg:col-span-1">
               <TournamentStandingsBox isMobile={false} />
             </div>
           </div>
         </>
       )}
+
+      {/* Floating Refresh Button — always visible bottom right */}
+      <button
+        onClick={handleRefresh}
+        disabled={refreshing}
+        data-testid="refresh-leaderboard"
+        title="Refresh scores"
+        className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-[#1B4332] hover:bg-[#2D6A4F] text-white shadow-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 disabled:opacity-60"
+      >
+        <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+      </button>
     </div>
   );
 }

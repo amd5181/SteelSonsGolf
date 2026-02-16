@@ -352,7 +352,7 @@ export default function AdminPage() {
 
       {/* View Teams Dialog */}
       <Dialog open={teamsDialog.open} onOpenChange={(open) => { if (!open) { setTeamsDialog({ open: false, tournament: null, teams: [] }); setEditingTeam(null); setEditGolfers([]); } }}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" data-testid="teams-dialog">
+        <DialogContent className="sm:max-w-2xl h-[85vh] flex flex-col" data-testid="teams-dialog">
           <DialogHeader>
             <DialogTitle className="font-heading font-bold text-xl">
               {teamsDialog.tournament?.name} - Teams ({teamsDialog.teams.length})
@@ -416,7 +416,7 @@ export default function AdminPage() {
             </div>
           ) : (
             // List mode
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 min-h-0">
               {teamsDialog.teams.length === 0 ? (
                 <div className="text-center py-8 text-slate-400">
                   <Users className="w-12 h-12 mx-auto mb-2 opacity-30" />

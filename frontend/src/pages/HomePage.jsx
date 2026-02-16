@@ -34,21 +34,33 @@ const SLOT_NAMES = ['Masters', 'PGA Championship', 'U.S. Open', 'The Open'];
 
 // Fetch golf news from Yahoo Sports RSS via rss2json proxy (no API key needed)
 async function fetchGolfNews() {
-  const rssUrl = encodeURIComponent('https://sports.yahoo.com/golf/news/rss.xml');
-  const r = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${rssUrl}&count=5`);
-  const data = await r.json();
-  if (data.status !== 'ok') throw new Error('RSS fetch failed');
-  return data.items.map(item => ({
-    headline: item.title,
-    summary: item.description
-      ? item.description.replace(/<[^>]+>/g, '').slice(0, 120).trim() + '...'
-      : '',
-    source: 'Yahoo Sports Golf',
-    url: item.link,
-    date: item.pubDate
-      ? new Date(item.pubDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      : '',
-  }));
+  try {
+    const rssUrl = 'https://sports.yahoo.com/golf/news/rss.xml';
+    // AllOrigins allows us to pull the raw data without the 422 error
+    const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`);
+    if (!r.ok) throw new Error('Proxy failed');
+    
+    const data = await r.json();
+    // The RSS XML is inside data.contents
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(data.contents, "text/xml");
+    const items = Array.from(xml.querySelectorAll("item")).slice(0, 5);
+
+    return items.map(item => ({
+      headline: item.querySelector("title")?.textContent || '',
+      summary: item.querySelector("description")?.textContent
+        ?.replace(/<[^>]+>/g, '') // Strips HTML tags
+        .slice(0, 120).trim() + '...' || '',
+      source: 'Yahoo Sports',
+      url: item.querySelector("link")?.textContent || '#',
+      date: item.querySelector("pubDate")?.textContent
+        ? new Date(item.querySelector("pubDate").textContent).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : '',
+    }));
+  } catch (err) {
+    console.error("News Fetch Error:", err);
+    throw err;
+  }
 }
 
 export default function HomePage() {

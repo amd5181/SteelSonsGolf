@@ -32,35 +32,49 @@ function getStatusBadge(status, deadline) {
 
 const SLOT_NAMES = ['Masters', 'PGA Championship', 'U.S. Open', 'The Open'];
 
-// Reliable fetcher: GOLF.com is 100% golf, no other sports.
+/**
+ * Robust text cleaner to handle HTML entities found in GOLF.com feeds
+ * This fixes the "&amp;" and "&#8217;" issues from your screenshots.
+ */
+function cleanText(text) {
+  if (!text) return "";
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&#8217;/g, "'")
+    .replace(/&#8211;/g, "–")
+    .replace(/&#8220;/g, '"')
+    .replace(/&#8221;/g, '"')
+    .replace(/<[^>]+>/g, '') // Strip remaining HTML tags
+    .trim();
+}
+
 async function fetchGolfNews() {
   try {
-    const rssUrl = 'https://golf.com/feed/';
+    // Specifically target the /news/ sub-feed to avoid gear and instruction fluff
+    const rssUrl = 'https://golf.com/news/feed/';
     const r = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
     const data = await r.json();
 
-    if (data.status !== 'ok') throw new Error('GOLF.com feed unavailable');
+    if (data.status !== 'ok') throw new Error('GOLF.com News feed unavailable');
 
     return data.items.slice(0, 5).map(item => ({
-      headline: item.title,
+      headline: cleanText(item.title),
       summary: item.description 
-        ? item.description.replace(/<[^>]+>/g, '').slice(0, 110).trim() + '...' 
-        : 'The latest from the PGA Tour, LIV, and more.',
+        ? cleanText(item.description).slice(0, 115).trim() + '...' 
+        : 'Read the full tournament coverage on GOLF.com.',
       source: 'GOLF.com',
       url: item.link,
       date: new Date(item.pubDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }));
   } catch (err) {
     console.error("Golf News Error:", err);
-    return [
-      {
-        headline: "GOLF.com: Tour Updates",
-        summary: "Check the latest leaderboards and tour stories directly.",
-        source: "GOLF.com",
-        url: "https://golf.com/news/",
-        date: "Live"
-      }
-    ];
+    return [{
+      headline: "PGA & LIV Tour Updates",
+      summary: "We're having trouble loading the live feed. Visit GOLF.com for the latest from Pebble Beach and Adelaide.",
+      source: "GOLF.com",
+      url: "https://golf.com/news/",
+      date: "Live"
+    }];
   }
 }
 
@@ -71,6 +85,7 @@ export default function HomePage() {
   const [newsLoading, setNewsLoading] = useState(true);
   const navigate = useNavigate();
 
+  // Tournament Fetch
   useEffect(() => {
     axios.get(`${API}/tournaments`)
       .then(r => setTournaments(r.data))
@@ -78,9 +93,10 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // News Fetch with v4 Cache Busting
+  // News Fetch with v5 Cache Key
+  // Note: Using 'v5' ensures the browser ignores the old 'all-sports' or 'messy' data
   useEffect(() => {
-    const cached = sessionStorage.getItem('golf_news_v4');
+    const cached = sessionStorage.getItem('golf_news_v5');
     if (cached) {
       setNews(JSON.parse(cached));
       setNewsLoading(false);
@@ -88,7 +104,7 @@ export default function HomePage() {
       fetchGolfNews()
         .then(articles => {
           setNews(articles);
-          sessionStorage.setItem('golf_news_v4', JSON.stringify(articles));
+          sessionStorage.setItem('golf_news_v5', JSON.stringify(articles));
         })
         .catch(() => setNews([]))
         .finally(() => setNewsLoading(false));
@@ -179,7 +195,7 @@ export default function HomePage() {
                 href={article.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 hover:shadow-md hover:border-[#1B4332]/20 transition-all group block"
+                className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 hover:shadow-lg hover:border-[#1B4332]/20 hover:-translate-y-1 transition-all duration-300 group block"
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <span className="text-[10px] font-bold text-[#2D6A4F] uppercase tracking-wider">{article.source}</span>

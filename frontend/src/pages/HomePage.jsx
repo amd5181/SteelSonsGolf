@@ -35,38 +35,36 @@ const SLOT_NAMES = ['Masters', 'PGA Championship', 'U.S. Open', 'The Open'];
 // Improved fetcher: Targets official sites and handles errors gracefully
 async function fetchGolfNews() {
   try {
-    // Search specifically for official PGA and LIV domains for diversity
-    const query = encodeURIComponent('site:pgatour.com OR site:livgolf.com');
-    const rssUrl = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
+    // Golf Digest is the gold standard for clean, professional golf news
+    const rssUrl = 'http://www.golfdigest.com/services/rss/feeds/gd_everything.xml';
     
+    // We use the rss2json service to turn their XML into a clean JSON object
     const r = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
     const data = await r.json();
 
-    if (data.status !== 'ok') throw new Error('News feed unavailable');
+    if (data.status !== 'ok') throw new Error('Golf Digest feed unavailable');
 
+    // Pull the top 5 most recent articles
     return data.items.slice(0, 5).map(item => ({
-      headline: item.title.split(' - ')[0], // Removes " - Source Name" from headline
-      summary: "Latest official update from the professional tours.",
-      source: item.author || item.source?.name || 'Pro Golf',
+      headline: item.title,
+      // We clean up the summary: remove HTML tags and trim to size
+      summary: item.description 
+        ? item.description.replace(/<[^>]+>/g, '').slice(0, 100).trim() + '...' 
+        : 'Read the full story on Golf Digest.',
+      source: 'Golf Digest',
       url: item.link,
       date: new Date(item.pubDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }));
   } catch (err) {
     console.error("Golf News Error:", err);
+    // Safety Net Fallback
     return [
       {
-        headline: "PGA Tour: Latest News",
-        summary: "Check the latest leaderboards and stories from the PGA Tour.",
-        source: "PGA",
-        url: "https://www.pgatour.com/news",
-        date: "Live"
-      },
-      {
-        headline: "LIV Golf: Latest News",
-        summary: "The latest team standings and individual news from LIV.",
-        source: "LIV",
-        url: "https://www.livgolf.com/news",
-        date: "Live"
+        headline: "Check the Latest from Golf Digest",
+        summary: "We're having trouble loading the live feed. Visit the official site for major news.",
+        source: "Golf Digest",
+        url: "https://www.golfdigest.com/",
+        date: "Today"
       }
     ];
   }

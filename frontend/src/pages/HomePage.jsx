@@ -32,40 +32,38 @@ function getStatusBadge(status, deadline) {
 
 const SLOT_NAMES = ['Masters', 'PGA Championship', 'U.S. Open', 'The Open'];
 
-// Fetch golf news from Yahoo Sports RSS via rss2json proxy (no API key needed)
+// Improved fetcher: Targets official sites and handles errors gracefully
 async function fetchGolfNews() {
   try {
-    // Google News search for "PGA Tour" and "LIV Golf" combined
-    const query = encodeURIComponent('PGA Tour LIV Golf');
+    // Search specifically for official PGA and LIV domains for diversity
+    const query = encodeURIComponent('site:pgatour.com OR site:livgolf.com');
     const rssUrl = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
     
-    // Using a reliable, high-bandwidth transformer
     const r = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
     const data = await r.json();
 
-    if (data.status !== 'ok') throw new Error('Google News feed unavailable');
+    if (data.status !== 'ok') throw new Error('News feed unavailable');
 
     return data.items.slice(0, 5).map(item => ({
-      headline: item.title.split(' - ')[0], // Removes the source from the title
-      summary: "Latest updates from the world of professional golf.",
-      source: item.author || item.source?.name || 'Golf News',
+      headline: item.title.split(' - ')[0], // Removes " - Source Name" from headline
+      summary: "Latest official update from the professional tours.",
+      source: item.author || item.source?.name || 'Pro Golf',
       url: item.link,
       date: new Date(item.pubDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }));
   } catch (err) {
     console.error("Golf News Error:", err);
-    // Static Fallback - The "Safety Net"
     return [
       {
-        headline: "PGA Tour: Official News",
-        summary: "Check the latest from the PGA Tour.",
+        headline: "PGA Tour: Latest News",
+        summary: "Check the latest leaderboards and stories from the PGA Tour.",
         source: "PGA",
         url: "https://www.pgatour.com/news",
         date: "Live"
       },
       {
-        headline: "LIV Golf: Latest Stories",
-        summary: "The latest team and individual news from LIV.",
+        headline: "LIV Golf: Latest News",
+        summary: "The latest team standings and individual news from LIV.",
         source: "LIV",
         url: "https://www.livgolf.com/news",
         date: "Live"
@@ -81,15 +79,29 @@ export default function HomePage() {
   const [newsLoading, setNewsLoading] = useState(true);
   const navigate = useNavigate();
 
+  // Tournament Fetch
   useEffect(() => {
-    axios.get(`${API}/tournaments`).then(r => setTournaments(r.data)).catch(() => {}).finally(() => setLoading(false));
+    axios.get(`${API}/tournaments`)
+      .then(r => setTournaments(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
+  // News Fetch with Session Caching
   useEffect(() => {
-    fetchGolfNews()
-      .then(articles => setNews(articles))
-      .catch(() => setNews([]))
-      .finally(() => setNewsLoading(false));
+    const cached = sessionStorage.getItem('golf_news_cache');
+    if (cached) {
+      setNews(JSON.parse(cached));
+      setNewsLoading(false);
+    } else {
+      fetchGolfNews()
+        .then(articles => {
+          setNews(articles);
+          sessionStorage.setItem('golf_news_cache', JSON.stringify(articles));
+        })
+        .catch(() => setNews([]))
+        .finally(() => setNewsLoading(false));
+    }
   }, []);
 
   const allSlots = [1, 2, 3, 4].map(slot => {
@@ -105,21 +117,19 @@ export default function HomePage() {
 
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto animate-fade-in-up">
-      {/* Tournaments */}
       <div className="mb-6">
-        <h1 className="font-heading font-extrabold text-3xl sm:text-4xl text-[#0F172A] tracking-tight" data-testid="home-title">
+        <h1 className="font-heading font-extrabold text-3xl sm:text-4xl text-[#0F172A] tracking-tight">
           THE MAJORS
         </h1>
         <p className="text-slate-500 text-sm mt-1">Four tournaments. Infinite glory.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10 stagger" data-testid="tournament-grid">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10 stagger">
         {allSlots.map((t) => {
           const badge = getStatusBadge(t.status, t.deadline);
           return (
             <div key={t.slot}
               className="bg-white rounded-xl border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_24px_rgba(27,67,50,0.12)] transition-all duration-300 overflow-hidden group cursor-pointer"
-              data-testid={`tournament-card-${t.slot}`}
               onClick={() => t.id ? navigate('/teams') : null}
             >
               <div className="h-2 bg-gradient-to-r from-[#1B4332] to-[#2D6A4F]" />
@@ -145,23 +155,16 @@ export default function HomePage() {
                     <span><strong className="text-[#0F172A] font-numbers">{t.team_count}</strong> teams entered</span>
                   </div>
                 </div>
-                {t.id && t.has_prices && (
-                  <div className="mt-4 flex items-center text-[#1B4332] text-sm font-bold group-hover:translate-x-1 transition-transform">
-                    Build Your Team <ChevronRight className="w-4 h-4 ml-1" />
-                  </div>
-                )}
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Golf News */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Newspaper className="w-5 h-5 text-[#1B4332]" />
           <h2 className="font-heading font-bold text-xl text-[#0F172A] tracking-tight">GOLF NEWS</h2>
-          <span className="text-xs text-slate-400 font-medium ml-1">· updated each visit</span>
         </div>
 
         {newsLoading ? (
@@ -170,13 +173,12 @@ export default function HomePage() {
               <div key={i} className="bg-white rounded-xl border border-slate-100 p-4 animate-pulse">
                 <div className="h-4 bg-slate-100 rounded w-3/4 mb-2" />
                 <div className="h-3 bg-slate-100 rounded w-full mb-1" />
-                <div className="h-3 bg-slate-100 rounded w-2/3" />
               </div>
             ))}
           </div>
         ) : news.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-100 p-6 text-center">
-            <p className="text-slate-400 text-sm">Couldn't load news right now. Check back soon.</p>
+            <p className="text-slate-400 text-sm">Couldn't load news right now.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

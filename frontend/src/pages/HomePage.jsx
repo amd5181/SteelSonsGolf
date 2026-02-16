@@ -35,31 +35,42 @@ const SLOT_NAMES = ['Masters', 'PGA Championship', 'U.S. Open', 'The Open'];
 // Fetch golf news from Yahoo Sports RSS via rss2json proxy (no API key needed)
 async function fetchGolfNews() {
   try {
-    const rssUrl = 'https://sports.yahoo.com/golf/news/rss.xml';
-    // AllOrigins allows us to pull the raw data without the 422 error
-    const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`);
-    if (!r.ok) throw new Error('Proxy failed');
+    // Google News search for "PGA Tour" and "LIV Golf" combined
+    const query = encodeURIComponent('PGA Tour LIV Golf');
+    const rssUrl = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
     
+    // Using a reliable, high-bandwidth transformer
+    const r = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
     const data = await r.json();
-    // The RSS XML is inside data.contents
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(data.contents, "text/xml");
-    const items = Array.from(xml.querySelectorAll("item")).slice(0, 5);
 
-    return items.map(item => ({
-      headline: item.querySelector("title")?.textContent || '',
-      summary: item.querySelector("description")?.textContent
-        ?.replace(/<[^>]+>/g, '') // Strips HTML tags
-        .slice(0, 120).trim() + '...' || '',
-      source: 'Yahoo Sports',
-      url: item.querySelector("link")?.textContent || '#',
-      date: item.querySelector("pubDate")?.textContent
-        ? new Date(item.querySelector("pubDate").textContent).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        : '',
+    if (data.status !== 'ok') throw new Error('Google News feed unavailable');
+
+    return data.items.slice(0, 5).map(item => ({
+      headline: item.title.split(' - ')[0], // Removes the source from the title
+      summary: "Latest updates from the world of professional golf.",
+      source: item.author || item.source?.name || 'Golf News',
+      url: item.link,
+      date: new Date(item.pubDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }));
   } catch (err) {
-    console.error("News Fetch Error:", err);
-    throw err;
+    console.error("Golf News Error:", err);
+    // Static Fallback - The "Safety Net"
+    return [
+      {
+        headline: "PGA Tour: Official News",
+        summary: "Check the latest from the PGA Tour.",
+        source: "PGA",
+        url: "https://www.pgatour.com/news",
+        date: "Live"
+      },
+      {
+        headline: "LIV Golf: Latest Stories",
+        summary: "The latest team and individual news from LIV.",
+        source: "LIV",
+        url: "https://www.livgolf.com/news",
+        date: "Live"
+      }
+    ];
   }
 }
 

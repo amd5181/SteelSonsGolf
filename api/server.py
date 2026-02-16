@@ -847,9 +847,9 @@ async def manual_refresh(tournament_id: str, user_id: str = Query(...)):
 # ── History ──
 HISTORY = [
     {"year":2025,"tournaments":[
-        {"name":"The Open","winners":["Dat Boy","Rich Pocki","Bill Moser"]},
-        {"name":"U.S. Open","winners":["Paul Del Prieto","Alan McBride","Justin Malago"]},
-        {"name":"PGA Championship","winners":["Bill Moser","Keith Ginder","Toby Cressman"]},
+        {"name":"The Open","winners":["Dat Boy","Keith Plocki","Bill Moser"]},
+        {"name":"U.S. Open","winners":["Paul Del Presto","Alan McBride","Justin Malago"]},
+        {"name":"PGA Championship","winners":["Bill Moser","Keith Plocki","Toby Cressman"]},
         {"name":"Masters","winners":["Justin Blazel","Carson Custer","Toby Cressman"]}]},
     {"year":2024,"tournaments":[{"name":"Masters","winners":["Andy Albert","Ian Very","Matt Walker"]}]},
     {"year":2023,"tournaments":[{"name":"Masters","winners":["Andrew David","Colin Scarola","Justin Rosenthal"]}]},

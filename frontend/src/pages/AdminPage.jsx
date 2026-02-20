@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Settings, Search, Download, DollarSign, Trash2, Loader2, Users, CheckCircle, ClipboardPaste, FileSpreadsheet, Calendar, Eye, Pencil, X, Mail } from 'lucide-react';
 
 const fmt = (n) => '$' + (n || 0).toLocaleString();
@@ -22,6 +22,10 @@ export default function AdminPage() {
   const [oddsDialog, setOddsDialog] = useState({ open: false, slot: null });
   const [oddsText, setOddsText] = useState('');
   const [teamsDialog, setTeamsDialog] = useState({ open: false, tournament: null, teams: [] });
+  const [manualPlayersText, setManualPlayersText] = useState('');
+  const [manualDialog, setManualDialog] = useState({ open: false, slot: null });
+  const [mappingDialog, setMappingDialog] = useState({ open: false, slot: null, suggestions: [], espnPlayers: [] });
+  const [selectedMappings, setSelectedMappings] = useState({});
   const [editingTeam, setEditingTeam] = useState(null);
   const [editGolfers, setEditGolfers] = useState([]);
 
@@ -174,6 +178,70 @@ export default function AdminPage() {
     a.click();
     URL.revokeObjectURL(url);
     toast.success(`Exported ${emails.length} emails`);
+  };
+
+  const uploadManualPlayers = async () => {
+    if (!manualPlayersText.trim()) { toast.error('Enter player list'); return; }
+    setActionLoading(p => ({ ...p, [`manual_${manualDialog.slot}`]: true }));
+    try {
+      await axios.post(`${API}/admin/upload-manual-players/${manualDialog.slot}?user_id=${user.id}`, 
+        { players_text: manualPlayersText }, 
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      await fetchTournaments();
+      setManualDialog({ open: false, slot: null });
+      setManualPlayersText('');
+      toast.success('Manual players uploaded!');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Upload failed'); }
+    finally { setActionLoading(p => ({ ...p, [`manual_${manualDialog.slot}`]: false })); }
+  };
+
+  const openMappingWizard = async (slot) => {
+    setActionLoading(p => ({ ...p, [`mapping_${slot}`]: true }));
+    try {
+      const r = await axios.get(`${API}/admin/mapping-suggestions/${slot}?user_id=${user.id}`);
+      if (r.data.mappings.length === 0) {
+        toast.info(r.data.message || 'No mappings needed');
+        return;
+      }
+      const autoMappings = {};
+      r.data.mappings.forEach(m => {
+        if (m.status === 'auto' || m.status === 'suggested') {
+          autoMappings[m.manual_name] = { espn_id: m.espn_id, espn_name: m.espn_name, confidence: m.confidence };
+        }
+      });
+      setSelectedMappings(autoMappings);
+      setMappingDialog({ open: true, slot, suggestions: r.data.mappings, espnPlayers: r.data.all_espn_players || [] });
+    } catch (e) { toast.error(e.response?.data?.detail || 'Failed to load mappings'); }
+    finally { setActionLoading(p => ({ ...p, [`mapping_${slot}`]: false })); }
+  };
+
+  const applyMappings = async () => {
+    const mappingsArray = Object.entries(selectedMappings).map(([manual_name, data]) => ({
+      manual_name,
+      espn_id: data.espn_id,
+      espn_name: data.espn_name,
+      confidence: data.confidence || 0
+    }));
+    if (mappingsArray.length === 0) { toast.error('No mappings selected'); return; }
+    setActionLoading(p => ({ ...p, applyMappings: true }));
+    try {
+      await axios.post(`${API}/admin/apply-mappings/${mappingDialog.slot}?user_id=${user.id}`, mappingsArray);
+      await fetchTournaments();
+      setMappingDialog({ open: false, slot: null, suggestions: [], espnPlayers: [] });
+      setSelectedMappings({});
+      toast.success('Mappings applied!');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Mapping failed'); }
+    finally { setActionLoading(p => ({ ...p, applyMappings: false })); }
+  };
+
+  const deleteUnmapped = async () => {
+    if (!window.confirm('Delete all unmapped manual players?')) return;
+    try {
+      await axios.delete(`${API}/admin/delete-unmapped/${mappingDialog.slot}?user_id=${user.id}`);
+      await fetchTournaments();
+      toast.success('Unmapped players deleted');
+    } catch (e) { toast.error('Delete failed'); }
   };
 
 
@@ -506,6 +574,107 @@ export default function AdminPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Manual Player Upload Dialog */}
+      <Dialog open={manualDialog.open} onOpenChange={(open) => { if (!open) setManualDialog({ open: false, slot: null }); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Upload Manual Players</DialogTitle>
+            <DialogDescription>
+              Paste player list (one per line). Format: "Name" or "Name, Price"<br/>
+              Example: Jake Bridgeman, 250000
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            value={manualPlayersText}
+            onChange={e => setManualPlayersText(e.target.value)}
+            placeholder="Jake Bridgeman, 250000
+Scottie Scheffler, 500000
+Rory McIlroy"
+            className="w-full h-48 p-3 border rounded-lg font-mono text-sm"
+          />
+          <Button onClick={uploadManualPlayers} disabled={actionLoading[`manual_${manualDialog.slot}`]}
+            className="w-full bg-[#1B4332] text-white">
+            {actionLoading[`manual_${manualDialog.slot}`] ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ClipboardPaste className="w-4 h-4 mr-2" />}
+            Upload Players
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mapping Wizard Dialog */}
+      <Dialog open={mappingDialog.open} onOpenChange={(open) => { if (!open) setMappingDialog({ open: false, slot: null, suggestions: [], espnPlayers: [] }); }}>
+        <DialogContent className="sm:max-w-3xl h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Map Manual Players to ESPN Data</DialogTitle>
+            <DialogDescription>
+              Review and confirm player mappings. Green = auto-matched, Yellow = suggested, Red = needs manual selection.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="space-y-2 pr-2">
+              {mappingDialog.suggestions.map((suggestion, i) => (
+                <div key={i} className={`p-3 rounded-lg border-2 ${
+                  suggestion.status === 'auto' ? 'bg-emerald-50 border-emerald-200' :
+                  suggestion.status === 'suggested' ? 'bg-yellow-50 border-yellow-200' :
+                  'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="font-bold text-sm">{suggestion.manual_name}</div>
+                      <div className="text-xs text-slate-500">
+                        Manual {suggestion.manual_price ? `· ${fmt(suggestion.manual_price)}` : ''}
+                      </div>
+                    </div>
+                    
+                    <div className="text-slate-400">→</div>
+                    
+                    <div className="flex-1">
+                      <select
+                        value={selectedMappings[suggestion.manual_name]?.espn_id || ''}
+                        onChange={e => {
+                          const espn = mappingDialog.espnPlayers.find(p => p.espn_id === e.target.value);
+                          if (espn) {
+                            setSelectedMappings(prev => ({
+                              ...prev,
+                              [suggestion.manual_name]: { espn_id: espn.espn_id, espn_name: espn.name, confidence: suggestion.confidence }
+                            }));
+                          }
+                        }}
+                        className="w-full p-2 border rounded text-sm"
+                      >
+                        <option value="">-- Select ESPN Player --</option>
+                        {mappingDialog.espnPlayers.map(p => (
+                          <option key={p.espn_id} value={p.espn_id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedMappings[suggestion.manual_name] && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          Confidence: {Math.round(suggestion.confidence * 100)}%
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          
+          <div className="border-t pt-3 flex gap-2">
+            <Button onClick={applyMappings} disabled={actionLoading.applyMappings || Object.keys(selectedMappings).length === 0}
+              className="flex-1 bg-[#1B4332] text-white">
+              {actionLoading.applyMappings ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Apply Mappings ({Object.keys(selectedMappings).length})
+            </Button>
+            <Button onClick={deleteUnmapped} variant="destructive" className="px-4">
+              <Trash2 className="w-4 h-4 mr-1" />Delete Unmapped
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

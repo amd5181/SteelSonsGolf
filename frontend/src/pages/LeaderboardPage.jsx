@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { API, useAuth } from '../App';
 import { Button } from '../components/ui/button';
-import { Medal, RefreshCw, Loader2, Clock, ChevronDown, ChevronUp, BarChart2, List, LayoutList } from 'lucide-react';
+import { Medal, RefreshCw, Loader2, Clock, ChevronDown, ChevronUp, BarChart2, List, LayoutList, Lock } from 'lucide-react';
 
 const abbrevName = (name) => {
   if (!name) return '';
@@ -91,6 +91,12 @@ export default function LeaderboardPage() {
   const allScores = data?.tournament_standings || [];
   const finalized = data?.is_finalized;
   const winners = finalized ? standings.slice(0, 3) : [];
+  
+  // Check if current time is before deadline — hide team standings until locked
+  const currentTournament = tournaments.find(t => t.id === selectedTid);
+  const isBeforeDeadline = currentTournament?.deadline 
+    ? new Date() < new Date(currentTournament.deadline)
+    : false;
 
   const renderRounds = (golfer) => {
     const rounds = golfer.rounds || [];
@@ -222,14 +228,28 @@ export default function LeaderboardPage() {
                   </div>
                 )}
 
-                {standings.length === 0 ? (
+                {isBeforeDeadline ? (
+                  <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
+                    <Lock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-700 text-lg font-bold mb-1">Standings Locked</p>
+                    <p className="text-slate-400 text-sm">Team standings will be revealed after the deadline.</p>
+                    {currentTournament?.deadline && (
+                      <p className="text-xs text-slate-500 mt-2">
+                        Unlocks: {new Date(currentTournament.deadline).toLocaleString('en-US', { 
+                          month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' 
+                        })}
+                      </p>
+                    )}
+                  </div>
+                ) : standings.length === 0 ? (
                   <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
                     <BarChart2 className="w-10 h-10 text-slate-200 mx-auto mb-2" />
                     <p className="text-slate-400 text-sm">No fantasy teams entered yet</p>
                   </div>
                 ) : (
                   <>
-                    {/* Expand / Collapse toggle */}
+                    {/* Expand / Collapse toggle - only show if not before deadline */}
+                    {!isBeforeDeadline && (
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-slate-400 font-semibold">{standings.length} teams</span>
                       <button

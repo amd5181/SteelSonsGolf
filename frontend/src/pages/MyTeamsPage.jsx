@@ -15,39 +15,27 @@ const fmt = (n) => '$' + (n || 0).toLocaleString();
 const isLocked = (dl) => { if (!dl) return false; try { return new Date() > new Date(dl); } catch { return false; } };
 
 
-// Smart tournament default selection based on deadlines
+// Select tournament with closest upcoming deadline
 function getDefaultTournamentSlot(tournaments) {
   if (!tournaments || tournaments.length === 0) return null;
   const now = new Date();
-  const oneWeek = 7 * 24 * 60 * 60 * 1000;
-  const twoMonths = 60 * 24 * 60 * 60 * 1000;
-  const sorted = [...tournaments].sort((a, b) => a.slot - b.slot);
   
-  for (let i = 0; i < sorted.length; i++) {
-    const t = sorted[i];
-    const nextT = sorted[i + 1];
-    if (!t.deadline) continue;
+  let closest = null;
+  let closestDiff = Infinity;
+  
+  tournaments.forEach(t => {
+    if (!t.deadline) return;
     try {
       const deadline = new Date(t.deadline);
-      const oneWeekBefore = new Date(deadline.getTime() - oneWeek);
-      if (now >= oneWeekBefore) {
-        if (nextT && nextT.deadline) {
-          const nextDeadline = new Date(nextT.deadline);
-          const nextOneWeekBefore = new Date(nextDeadline.getTime() - oneWeek);
-          if (now < nextOneWeekBefore) return t.slot;
-        } else {
-          const event1 = sorted[0];
-          if (event1 && event1.deadline) {
-            const event1Deadline = new Date(event1.deadline);
-            const twoMonthsBefore = new Date(event1Deadline.getTime() - twoMonths);
-            if (now >= twoMonthsBefore) return event1.slot;
-          }
-          return t.slot;
-        }
+      const diff = Math.abs(deadline - now);
+      if (diff < closestDiff) {
+        closestDiff = diff;
+        closest = t;
       }
     } catch (e) {}
-  }
-  return sorted.length > 0 ? sorted[0].slot : null;
+  });
+  
+  return closest ? closest.slot : (tournaments.length > 0 ? tournaments[0].slot : null);
 }
 
 

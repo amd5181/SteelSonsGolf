@@ -731,10 +731,15 @@ async def get_leaderboard(tournament_id: str):
                         sb = None
                         if g.get("score_int") is not None and leader_score is not None and not g.get("is_cut"):
                             sb = g["score_int"] - leader_score
+                        # Store "CUT" for total_score if player is cut
+                        display_score = "CUT" if g.get("is_cut") else g["score"]
+                        # Only show first 2 rounds for cut players
+                        display_rounds = g["rounds"][:2] if g.get("is_cut") else g["rounds"]
+                        
                         scores.append({
                             "espn_id": g["espn_id"], "name": g["name"], "position": str(g["order"]),
-                            "total_score": g["score"], "score_int": g.get("score_int"),
-                            "rounds": g["rounds"],
+                            "total_score": display_score, "score_int": g.get("score_int"),
+                            "rounds": display_rounds,
                             "thru": g.get("thru",""), "is_cut": g.get("is_cut",False),
                             "is_active": "PROGRESS" in str(g.get("status","")).upper(),
                             "strokes_behind": sb if sb is not None else 999, "sort_order": g["order"]
@@ -785,16 +790,8 @@ async def get_leaderboard(tournament_id: str):
                     position = sd.get("position","CUT") if sd.get("is_cut") else sd.get("position","-")
                     sb_val = sd.get("strokes_behind", 0)
                 
-                # If cut, show CUT for total_score and only rounds before cut
-                if sd.get("is_cut"):
-                    total_score_display = "CUT"
-                    rounds_display = sd.get("rounds",[])[:2]  # Only show first 2 rounds for cut players
-                else:
-                    total_score_display = sd.get("total_score","")
-                    rounds_display = sd.get("rounds",[])
-                
-                gd.append({**golfer, "position": position, "total_score": total_score_display,
-                          "rounds": rounds_display, "thru": sd.get("thru",""),
+                gd.append({**golfer, "position": position, "total_score": sd.get("total_score",""),
+                          "rounds": sd.get("rounds",[]), "thru": sd.get("thru",""),
                           "is_active": sd.get("is_active",False), "is_cut": sd.get("is_cut",False),
                           "strokes_behind": sb_val, "place_points": round(pp, 1), "stroke_points": sp, "total_points": round(tot, 1)})
                 tp += tot

@@ -613,6 +613,25 @@ async def admin_set_team_paid(team_id: str, user_id: str = Query(...), paid: boo
     await db.teams.update_one({"id": team_id}, {"$set": {"paid": paid}})
     return await db.teams.find_one({"id": team_id}, {"_id": 0})
 
+
+@api_router.get("/debug/espn-raw/{event_id}")
+async def debug_espn_raw(event_id: str):
+    """Debug endpoint to see raw ESPN data for cut detection."""
+    try:
+        golfers, raw = await espn_get_field(event_id, "")
+        # Return just the first 10 competitors with their full data
+        if raw and 'events' in raw and raw['events']:
+            comps = raw['events'][0].get('competitions', [{}])[0].get('competitors', [])
+            # Focus on players around position 70-80 (where cuts typically are)
+            cut_candidates = [c for c in comps if c.get('order', 999) >= 70 and c.get('order', 999) <= 85]
+            return {
+                "total_competitors": len(comps),
+                "cut_candidates": cut_candidates[:5]  # First 5 around the cut line
+            }
+        return {"error": "No data"}
+    except Exception as e:
+        return {"error": str(e)}
+
 # ── Public Tournament Routes ──
 @api_router.get("/tournaments")
 async def get_tournaments():

@@ -236,11 +236,10 @@ async def espn_get_field(event_id, event_date=None):
                     'strokes': ls.get('value', None)
                 })
             score_str = str(c.get('score', ''))
-            is_cut = 'CUT' in score_str.upper()
-            
-            # DEBUG: Log full competitor data for players with only 2 rounds (potential cuts)
-            if len(rounds) <= 2 and event_date:
-                logger.info(f"POTENTIAL CUT PLAYER - Name: {ath.get('fullName')}, Score: {score_str}, Status: {c.get('status')}, Rounds: {len(rounds)}, Order: {c.get('order')}")
+            # Detect cuts: Check if word "CUT" appears OR if player has significantly fewer rounds than expected
+            # During a tournament, cut players will have 2 rounds while others continue to 3 or 4
+            is_cut_by_text = 'CUT' in score_str.upper()
+            is_cut = is_cut_by_text
             
             golfers.append({
                 'espn_id': str(ath.get('id', c.get('id', ''))),
@@ -254,6 +253,25 @@ async def espn_get_field(event_id, event_date=None):
                 'status': c.get('status', {}).get('type', {}).get('name', '') if isinstance(c.get('status'), dict) else '',
                 'thru': str(c.get('status', {}).get('thru', '')) if isinstance(c.get('status'), dict) else ''
             })
+        
+        # Second pass: Detect cuts by round count
+        # If most players have 3+ rounds and some have only 2, those with 2 are cut
+        if golfers:
+            round_counts = {}
+            for g in golfers:
+                rc = len(g['rounds'])
+                round_counts[rc] = round_counts.get(rc, 0) + 1
+            
+            # Find the maximum round count (what the leaders have)
+            max_rounds = max(round_counts.keys()) if round_counts else 0
+            
+            # If tournament has progressed beyond round 2 (i.e., max_rounds >= 3)
+            # then anyone with only 2 rounds is cut
+            if max_rounds >= 3:
+                for g in golfers:
+                    if len(g['rounds']) == 2:
+                        g['is_cut'] = True
+        
         return golfers, data
     except Exception as e:
         logger.error(f"ESPN field: {e}")
@@ -619,18 +637,41 @@ async def debug_espn_raw(event_id: str):
     """Debug endpoint to see raw ESPN data for cut detection."""
     try:
         golfers, raw = await espn_get_field(event_id, "")
-        # Return just the first 10 competitors with their full data
-        if raw and 'events' in raw and raw['events']:
-            comps = raw['events'][0].get('competitions', [{}])[0].get('competitors', [])
-            # Focus on players around position 70-80 (where cuts typically are)
-            cut_candidates = [c for c in comps if c.get('order', 999) >= 70 and c.get('order', 999) <= 85]
-            return {
-                "total_competitors": len(comps),
-                "cut_candidates": cut_candidates[:5]  # First 5 around the cut line
-            }
-        return {"error": "No data"}
+        
+        # Return structure info and sample competitors
+        if not raw:
+            return {"error": "No raw data returned"}
+        
+        if 'events' not in raw:
+            return {"error": "No events in raw data", "keys": list(raw.keys())}
+        
+        if not raw['events']:
+            return {"error": "Events array is empty"}
+        
+        event = raw['events'][0]
+        if 'competitions' not in event:
+            return {"error": "No competitions in event", "event_keys": list(event.keys())}
+        
+        comp = event['competitions'][0] if event['competitions'] else {}
+        if 'competitors' not in comp:
+            return {"error": "No competitors in competition", "comp_keys": list(comp.keys())}
+        
+        comps = comp['competitors']
+        
+        # Get cut candidates (positions 74-78, should be cut players)
+        cut_candidates = [c for c in comps if c.get('order', 999) >= 74 and c.get('order', 999) <= 78]
+        
+        # Get a non-cut player for comparison (position 1)
+        leader = [c for c in comps if c.get('order', 999) == 1]
+        
+        return {
+            "total_competitors": len(comps),
+            "leader_sample": leader[0] if leader else None,
+            "cut_players_sample": cut_candidates[:3]
+        }
     except Exception as e:
-        return {"error": str(e)}
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}
 
 # ── Public Tournament Routes ──
 @api_router.get("/tournaments")

@@ -237,6 +237,11 @@ async def espn_get_field(event_id, event_date=None):
                 })
             score_str = str(c.get('score', ''))
             is_cut = 'CUT' in score_str.upper()
+            
+            # DEBUG: Log full competitor data for players with only 2 rounds (potential cuts)
+            if len(rounds) <= 2 and event_date:
+                logger.info(f"POTENTIAL CUT PLAYER - Name: {ath.get('fullName')}, Score: {score_str}, Status: {c.get('status')}, Rounds: {len(rounds)}, Order: {c.get('order')}")
+            
             golfers.append({
                 'espn_id': str(ath.get('id', c.get('id', ''))),
                 'name': ath.get('fullName', ath.get('displayName', '')),

@@ -861,6 +861,9 @@ async def get_leaderboard(tournament_id: str):
                     tot = tied_data['total_points']
                     position = tied_data['position']
                     sb_val = tied_data['strokes_behind']
+                    # Players who made the cut earn a minimum of 5 points
+                    if tot < 5:
+                        tot = 5
                 else:
                     pp = 0
                     sp = 0

@@ -34,7 +34,8 @@ export default function RulesPage() {
         </div>
         <div className="mt-3 space-y-1 text-xs text-slate-400 border-t border-slate-100 pt-3">
           <p>Each additional place after 15th: 1 point less (down to 0 points)</p>
-          <p>CUT / WD / DQ = 0 points</p>
+          <p>Missed Cut / WD / DQ = 0 points</p>
+          <p className="text-[#1B4332] font-semibold">★ Any player who makes the cut earns a minimum of 5 points, regardless of finish position</p>
         </div>
       </div>
 

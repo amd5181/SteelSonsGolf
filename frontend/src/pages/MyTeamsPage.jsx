@@ -14,6 +14,43 @@ const BUDGET = 1000000;
 const fmt = (n) => '$' + (n || 0).toLocaleString();
 const isLocked = (dl) => { if (!dl) return false; try { return new Date() > new Date(dl); } catch { return false; } };
 
+
+// Smart tournament default selection based on deadlines
+function getDefaultTournamentSlot(tournaments) {
+  if (!tournaments || tournaments.length === 0) return null;
+  const now = new Date();
+  const oneWeek = 7 * 24 * 60 * 60 * 1000;
+  const twoMonths = 60 * 24 * 60 * 60 * 1000;
+  const sorted = [...tournaments].sort((a, b) => a.slot - b.slot);
+  
+  for (let i = 0; i < sorted.length; i++) {
+    const t = sorted[i];
+    const nextT = sorted[i + 1];
+    if (!t.deadline) continue;
+    try {
+      const deadline = new Date(t.deadline);
+      const oneWeekBefore = new Date(deadline.getTime() - oneWeek);
+      if (now >= oneWeekBefore) {
+        if (nextT && nextT.deadline) {
+          const nextDeadline = new Date(nextT.deadline);
+          const nextOneWeekBefore = new Date(nextDeadline.getTime() - oneWeek);
+          if (now < nextOneWeekBefore) return t.slot;
+        } else {
+          const event1 = sorted[0];
+          if (event1 && event1.deadline) {
+            const event1Deadline = new Date(event1.deadline);
+            const twoMonthsBefore = new Date(event1Deadline.getTime() - twoMonths);
+            if (now >= twoMonthsBefore) return event1.slot;
+          }
+          return t.slot;
+        }
+      }
+    } catch (e) {}
+  }
+  return sorted.length > 0 ? sorted[0].slot : null;
+}
+
+
 export default function MyTeamsPage() {
   const { user } = useAuth();
   const [tournaments, setTournaments] = useState([]);
@@ -32,7 +69,8 @@ export default function MyTeamsPage() {
   useEffect(() => {
     axios.get(`${API}/tournaments`).then(r => {
       setTournaments(r.data);
-      if (r.data.length > 0) setSelectedSlot(r.data[0].slot);
+      const defaultSlot = getDefaultTournamentSlot(r.data);
+      if (defaultSlot) setSelectedSlot(defaultSlot);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 

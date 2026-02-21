@@ -28,6 +28,45 @@ const renderThruCell = (golfer) => {
   return <span className="text-slate-300 text-xs">—</span>;
 };
 
+
+// Smart tournament default selection based on deadlines
+function getDefaultTournamentId(tournaments) {
+  if (!tournaments || tournaments.length === 0) return null;
+  const now = new Date();
+  const oneWeek = 7 * 24 * 60 * 60 * 1000;
+  const twoMonths = 60 * 24 * 60 * 60 * 1000;
+  const sorted = [...tournaments].sort((a, b) => a.slot - b.slot);
+  
+  for (let i = 0; i < sorted.length; i++) {
+    const t = sorted[i];
+    const nextT = sorted[i + 1];
+    if (!t.deadline || !t.id) continue;
+    try {
+      const deadline = new Date(t.deadline);
+      const oneWeekBefore = new Date(deadline.getTime() - oneWeek);
+      if (now >= oneWeekBefore) {
+        if (nextT && nextT.deadline) {
+          const nextDeadline = new Date(nextT.deadline);
+          const nextOneWeekBefore = new Date(nextDeadline.getTime() - oneWeek);
+          if (now < nextOneWeekBefore) return t.id;
+        } else {
+          const event1 = sorted[0];
+          if (event1 && event1.deadline) {
+            const event1Deadline = new Date(event1.deadline);
+            const twoMonthsBefore = new Date(event1Deadline.getTime() - twoMonths);
+            if (now >= twoMonthsBefore) return event1.id;
+          }
+          return t.id;
+        }
+      }
+    } catch (e) {}
+  }
+  const active = sorted.find(t => t.id && (t.status === 'prices_set' || t.status === 'completed'));
+  if (active) return active.id;
+  const withId = sorted.find(t => t.id);
+  return withId ? withId.id : null;
+}
+
 export default function LeaderboardPage() {
   const { user } = useAuth();
   const [tournaments, setTournaments] = useState([]);
@@ -42,9 +81,8 @@ export default function LeaderboardPage() {
   useEffect(() => {
     axios.get(`${API}/tournaments`).then(r => {
       setTournaments(r.data);
-      const active = r.data.find(t => t.status === 'prices_set' || t.status === 'completed');
-      if (active) setSelectedTid(active.id);
-      else if (r.data.length > 0) setSelectedTid(r.data[0].id);
+      const defaultId = getDefaultTournamentId(r.data);
+      if (defaultId) setSelectedTid(defaultId);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 

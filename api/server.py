@@ -784,8 +784,17 @@ async def get_leaderboard(tournament_id: str):
                     tot = 0
                     position = sd.get("position","CUT") if sd.get("is_cut") else sd.get("position","-")
                     sb_val = sd.get("strokes_behind", 0)
-                gd.append({**golfer, "position": position, "total_score": sd.get("total_score",""),
-                          "rounds": sd.get("rounds",[]), "thru": sd.get("thru",""),
+                
+                # If cut, show CUT for total_score and only rounds before cut
+                if sd.get("is_cut"):
+                    total_score_display = "CUT"
+                    rounds_display = sd.get("rounds",[])[:2]  # Only show first 2 rounds for cut players
+                else:
+                    total_score_display = sd.get("total_score","")
+                    rounds_display = sd.get("rounds",[])
+                
+                gd.append({**golfer, "position": position, "total_score": total_score_display,
+                          "rounds": rounds_display, "thru": sd.get("thru",""),
                           "is_active": sd.get("is_active",False), "is_cut": sd.get("is_cut",False),
                           "strokes_behind": sb_val, "place_points": round(pp, 1), "stroke_points": sp, "total_points": round(tot, 1)})
                 tp += tot
